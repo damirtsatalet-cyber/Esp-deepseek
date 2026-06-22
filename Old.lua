@@ -4,34 +4,29 @@ local UserInputService = game:GetService("UserInputService")
 local localPlayer = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
--- Ждём загрузки игрока
 if not localPlayer then
     Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
     localPlayer = Players.LocalPlayer
 end
 
-print("Скрипт запущен") -- Проверка в консоли
+print("Скрипт запущен")
 
 -- Создаём GUI
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "ESPGui"
-screenGui.ResetOnSpawn = false -- Важно! Чтобы GUI не исчезал при смерти
+screenGui.ResetOnSpawn = false
 screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
-
-print("GUI создан:", screenGui.Parent) -- Проверка
 
 -- Главная панель
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 250, 0, 350)
+mainFrame.Size = UDim2.new(0, 280, 0, 500)
 mainFrame.Position = UDim2.new(0.1, 0, 0.1, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
-mainFrame.Draggable = true -- Включаем встроенное перетаскивание!
+mainFrame.Draggable = true
 mainFrame.Parent = screenGui
-
-print("Фрейм создан") -- Проверка
 
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 8)
@@ -40,12 +35,27 @@ corner.Parent = mainFrame
 -- Заголовок
 local titleBar = Instance.new("TextLabel")
 titleBar.Size = UDim2.new(1, 0, 0, 30)
-titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 titleBar.Text = "ESP + AIM Panel"
 titleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleBar.Font = Enum.Font.SourceSansBold
 titleBar.TextSize = 16
 titleBar.Parent = mainFrame
+
+-- Создаём ScrollingFrame для вмещения всех элементов
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(1, 0, 1, -30)
+scrollFrame.Position = UDim2.new(0, 0, 0, 30)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.ScrollBarThickness = 6
+scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 750)
+scrollFrame.Parent = mainFrame
+
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, 0, 1, 0)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Parent = scrollFrame
 
 -- Функция создания кнопки
 local function createButton(parent, text, yPos, color)
@@ -57,6 +67,7 @@ local function createButton(parent, text, yPos, color)
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.SourceSansBold
     btn.TextSize = 13
+    btn.AutoButtonColor = false
     btn.Parent = parent
     
     local btnCorner = Instance.new("UICorner")
@@ -66,17 +77,328 @@ local function createButton(parent, text, yPos, color)
     return btn
 end
 
--- Создаём кнопки
-local espBtn = createButton(mainFrame, "ESP: ON", 40)
-local playerBtn = createButton(mainFrame, "Players: ON", 75)
-local npcBtn = createButton(mainFrame, "NPCs: ON", 110)
-local nameBtn = createButton(mainFrame, "Names: ON", 145)
-local healthBtn = createButton(mainFrame, "Health: ON", 180)
-local aimBtn = createButton(mainFrame, "AIM BOT: OFF", 215, Color3.fromRGB(170, 0, 0))
-local partBtn = createButton(mainFrame, "Target: Head", 250)
-local crossBtn = createButton(mainFrame, "Crosshair: OFF", 285, Color3.fromRGB(170, 0, 0))
+-- Функция создания слайдера
+local function createSlider(parent, name, min, max, default, yPos)
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(1, -20, 0, 50)
+    container.Position = UDim2.new(0, 10, 0, yPos)
+    container.BackgroundTransparency = 1
+    container.Parent = parent
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 18)
+    label.BackgroundTransparency = 1
+    label.Text = name .. ": " .. default
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.SourceSans
+    label.TextSize = 12
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = container
+    
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(1, 0, 0, 6)
+    bg.Position = UDim2.new(0, 0, 0, 22)
+    bg.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    bg.Parent = container
+    Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 3)
+    
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    fill.Parent = bg
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 3)
+    
+    local knob = Instance.new("TextButton")
+    knob.Size = UDim2.new(0, 14, 0, 14)
+    knob.Position = UDim2.new((default - min) / (max - min), -7, 0, 18)
+    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    knob.Text = ""
+    knob.Parent = container
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(0, 7)
+    
+    local value = default
+    
+    local function updateKnob(input)
+        local pos = math.clamp((input.Position.X - bg.AbsolutePosition.X) / bg.AbsoluteSize.X, 0, 1)
+        value = math.floor(min + (max - min) * pos)
+        fill.Size = UDim2.new(pos, 0, 1, 0)
+        knob.Position = UDim2.new(pos, -7, 0, 18)
+        label.Text = name .. ": " .. value
+    end
+    
+    knob.MouseButton1Down:Connect(function()
+        local moveConn
+        moveConn = UserInputService.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement then
+                updateKnob(input)
+            end
+        end)
+        
+        local endConn
+        endConn = UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                moveConn:Disconnect()
+                endConn:Disconnect()
+            end
+        end)
+    end)
+    
+    return {
+        GetValue = function() return value end,
+        SetValue = function(v)
+            value = math.clamp(v, min, max)
+            local pos = (value - min) / (max - min)
+            fill.Size = UDim2.new(pos, 0, 1, 0)
+            knob.Position = UDim2.new(pos, -7, 0, 18)
+            label.Text = name .. ": " .. value
+        end,
+        ValueChanged = function(callback)
+            knob.MouseButton1Down:Connect(function()
+                local oldValue = value
+                local moveConn
+                moveConn = UserInputService.InputChanged:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseMovement then
+                        if value ~= oldValue then
+                            callback(value)
+                            oldValue = value
+                        end
+                    end
+                end)
+                
+                local endConn
+                endConn = UserInputService.InputEnded:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        moveConn:Disconnect()
+                        endConn:Disconnect()
+                    end
+                end)
+            end)
+        end
+    }
+end
 
-print("Кнопки созданы") -- Проверка
+-- Функция создания палитры цветов
+local function createColorPicker(parent, name, defaultColor, yPos)
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(1, -20, 0, 80)
+    container.Position = UDim2.new(0, 10, 0, yPos)
+    container.BackgroundTransparency = 1
+    container.Parent = parent
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 18)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.SourceSans
+    label.TextSize = 12
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = container
+    
+    local currentColor = defaultColor
+    
+    -- Превью текущего цвета
+    local preview = Instance.new("Frame")
+    preview.Size = UDim2.new(0, 30, 0, 30)
+    preview.Position = UDim2.new(1, -30, 0, 22)
+    preview.BackgroundColor3 = currentColor
+    preview.BorderSizePixel = 0
+    preview.Parent = container
+    Instance.new("UICorner", preview).CornerRadius = UDim.new(0, 4)
+    
+    -- Пресеты цветов
+    local colors = {
+        Color3.fromRGB(255, 0, 0),      -- Красный
+        Color3.fromRGB(255, 128, 0),    -- Оранжевый
+        Color3.fromRGB(255, 255, 0),    -- Жёлтый
+        Color3.fromRGB(0, 255, 0),      -- Зелёный
+        Color3.fromRGB(0, 255, 255),    -- Голубой
+        Color3.fromRGB(0, 128, 255),    -- Синий
+        Color3.fromRGB(128, 0, 255),    -- Фиолетовый
+        Color3.fromRGB(255, 0, 255),    -- Розовый
+        Color3.fromRGB(255, 255, 255),  -- Белый
+        Color3.fromRGB(0, 0, 0),        -- Чёрный
+    }
+    
+    local colorButtons = {}
+    for i, color in ipairs(colors) do
+        local colorBtn = Instance.new("TextButton")
+        colorBtn.Size = UDim2.new(0, 22, 0, 22)
+        colorBtn.Position = UDim2.new(0, (i - 1) * 25, 0, 55)
+        colorBtn.BackgroundColor3 = color
+        colorBtn.BorderSizePixel = 0
+        colorBtn.Text = ""
+        colorBtn.Parent = container
+        Instance.new("UICorner", colorBtn).CornerRadius = UDim.new(0, 3)
+        
+        -- Рамка для чёрного цвета
+        if color == Color3.fromRGB(0, 0, 0) then
+            colorBtn.BorderSizePixel = 1
+            colorBtn.BorderColor3 = Color3.fromRGB(100, 100, 100)
+        end
+        
+        colorBtn.MouseButton1Click:Connect(function()
+            currentColor = color
+            preview.BackgroundColor3 = color
+        end)
+        
+        colorButtons[i] = colorBtn
+    end
+    
+    return {
+        GetColor = function() return currentColor end,
+        SetColor = function(color)
+            currentColor = color
+            preview.BackgroundColor3 = color
+        end
+    }
+end
+
+-- Функция создания выпадающего списка
+local function createDropdown(parent, name, items, defaultIndex, yPos)
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(1, -20, 0, 30)
+    container.Position = UDim2.new(0, 10, 0, yPos)
+    container.BackgroundTransparency = 1
+    container.Parent = parent
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0, 100, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name .. ":"
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.SourceSans
+    label.TextSize = 12
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = container
+    
+    local currentIndex = defaultIndex
+    
+    local mainBtn = Instance.new("TextButton")
+    mainBtn.Size = UDim2.new(1, -105, 1, 0)
+    mainBtn.Position = UDim2.new(0, 105, 0, 0)
+    mainBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    mainBtn.Text = items[defaultIndex]
+    mainBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    mainBtn.Font = Enum.Font.SourceSans
+    mainBtn.TextSize = 12
+    mainBtn.Parent = container
+    Instance.new("UICorner", mainBtn).CornerRadius = UDim.new(0, 4)
+    
+    local dropFrame = Instance.new("Frame")
+    dropFrame.Size = UDim2.new(1, -105, 0, #items * 25)
+    dropFrame.Position = UDim2.new(0, 105, 1, 2)
+    dropFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    dropFrame.Visible = false
+    dropFrame.ZIndex = 10
+    dropFrame.Parent = container
+    Instance.new("UICorner", dropFrame).CornerRadius = UDim.new(0, 4)
+    
+    local itemButtons = {}
+    for i, item in ipairs(items) do
+        local itemBtn = Instance.new("TextButton")
+        itemBtn.Size = UDim2.new(1, 0, 0, 25)
+        itemBtn.Position = UDim2.new(0, 0, 0, (i - 1) * 25)
+        itemBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        itemBtn.Text = item
+        itemBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        itemBtn.Font = Enum.Font.SourceSans
+        itemBtn.TextSize = 11
+        itemBtn.ZIndex = 10
+        itemBtn.Parent = dropFrame
+        
+        if i == defaultIndex then
+            itemBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        end
+        
+        itemBtn.MouseButton1Click:Connect(function()
+            currentIndex = i
+            mainBtn.Text = item
+            dropFrame.Visible = false
+        end)
+        
+        itemButtons[i] = itemBtn
+    end
+    
+    mainBtn.MouseButton1Click:Connect(function()
+        dropFrame.Visible = not dropFrame.Visible
+    end)
+    
+    return {
+        GetValue = function() return items[currentIndex] end,
+        GetIndex = function() return currentIndex end
+    }
+end
+
+-- Создаём элементы GUI
+local yOffset = 5
+
+-- ESP секция
+local espSection = Instance.new("TextLabel")
+espSection.Size = UDim2.new(1, -20, 0, 20)
+espSection.Position = UDim2.new(0, 10, 0, yOffset)
+espSection.BackgroundTransparency = 1
+espSection.Text = "── ESP Settings ──"
+espSection.TextColor3 = Color3.fromRGB(200, 200, 200)
+espSection.Font = Enum.Font.SourceSansBold
+espSection.TextSize = 13
+espSection.Parent = contentFrame
+yOffset = yOffset + 22
+
+local espBtn = createButton(contentFrame, "ESP: ON", yOffset)
+yOffset = yOffset + 35
+local playerBtn = createButton(contentFrame, "Players: ON", yOffset)
+yOffset = yOffset + 35
+local npcBtn = createButton(contentFrame, "NPCs: ON", yOffset)
+yOffset = yOffset + 35
+local nameBtn = createButton(contentFrame, "Names: ON", yOffset)
+yOffset = yOffset + 35
+local healthBtn = createButton(contentFrame, "Health: ON", yOffset)
+yOffset = yOffset + 35
+
+-- Материал ESP
+local materialDropdown = createDropdown(contentFrame, "ESP Style", {"Default", "Neon", "Glass", "ForceField"}, 1, yOffset)
+yOffset = yOffset + 40
+
+-- Цвета ESP
+local espColorPicker = createColorPicker(contentFrame, "ESP Color", Color3.fromRGB(255, 255, 255), yOffset)
+yOffset = yOffset + 90
+
+local fillColorPicker = createColorPicker(contentFrame, "Fill Color", Color3.fromRGB(255, 255, 255), yOffset)
+yOffset = yOffset + 90
+
+-- AIM секция
+local aimSection = Instance.new("TextLabel")
+aimSection.Size = UDim2.new(1, -20, 0, 20)
+aimSection.Position = UDim2.new(0, 10, 0, yOffset)
+aimSection.BackgroundTransparency = 1
+aimSection.Text = "── AIM Bot Settings ──"
+aimSection.TextColor3 = Color3.fromRGB(200, 200, 200)
+aimSection.Font = Enum.Font.SourceSansBold
+aimSection.TextSize = 13
+aimSection.Parent = contentFrame
+yOffset = yOffset + 22
+
+local aimBtn = createButton(contentFrame, "AIM BOT: OFF", yOffset, Color3.fromRGB(170, 0, 0))
+yOffset = yOffset + 35
+
+local aimRadiusSlider = createSlider(contentFrame, "AIM Radius", 50, 500, 200, yOffset)
+yOffset = yOffset + 55
+
+local aimSmoothSlider = createSlider(contentFrame, "Smoothness", 1, 20, 5, yOffset)
+yOffset = yOffset + 55
+
+local aimShowRadiusBtn = createButton(contentFrame, "Show Radius: ON", yOffset)
+yOffset = yOffset + 35
+
+local partBtn = createButton(contentFrame, "Target: Head", yOffset)
+yOffset = yOffset + 35
+
+-- Прицел
+local crossBtn = createButton(contentFrame, "Crosshair: OFF", yOffset, Color3.fromRGB(170, 0, 0))
+
+-- Обновляем CanvasSize
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset + 40)
 
 -- Переменные состояний
 local states = {
@@ -87,10 +409,12 @@ local states = {
     health = true,
     aim = false,
     aimPart = "Head",
-    crosshair = false
+    crosshair = false,
+    showRadius = true,
+    espMaterial = "Default"
 }
 
--- Словарь для хранения ESP объектов
+-- Словарь для ESP объектов
 local espObjects = {}
 
 -- Функция обновления цвета кнопки
@@ -103,31 +427,37 @@ end
 espBtn.MouseButton1Click:Connect(function()
     states.esp = not states.esp
     updateBtn(espBtn, states.esp, "ESP")
+    updateAllESP()
 end)
 
 playerBtn.MouseButton1Click:Connect(function()
     states.players = not states.players
     updateBtn(playerBtn, states.players, "Players")
+    updateAllESP()
 end)
 
 npcBtn.MouseButton1Click:Connect(function()
     states.npcs = not states.npcs
     updateBtn(npcBtn, states.npcs, "NPCs")
+    updateAllESP()
 end)
 
 nameBtn.MouseButton1Click:Connect(function()
     states.names = not states.names
     updateBtn(nameBtn, states.names, "Names")
+    updateAllESP()
 end)
 
 healthBtn.MouseButton1Click:Connect(function()
     states.health = not states.health
     updateBtn(healthBtn, states.health, "Health")
+    updateAllESP()
 end)
 
 aimBtn.MouseButton1Click:Connect(function()
     states.aim = not states.aim
     updateBtn(aimBtn, states.aim, "AIM BOT")
+    updateRadiusCircle()
 end)
 
 partBtn.MouseButton1Click:Connect(function()
@@ -138,14 +468,69 @@ end)
 crossBtn.MouseButton1Click:Connect(function()
     states.crosshair = not states.crosshair
     updateBtn(crossBtn, states.crosshair, "Crosshair")
+    toggleCrosshair()
 end)
 
--- Создание ESP для одного персонажа
+aimShowRadiusBtn.MouseButton1Click:Connect(function()
+    states.showRadius = not states.showRadius
+    updateBtn(aimShowRadiusBtn, states.showRadius, "Show Radius")
+    updateRadiusCircle()
+end)
+
+-- Обновление материала ESP
+materialDropdown.GetValue = function()
+    local items = {"Default", "Neon", "Glass", "ForceField"}
+    return items[materialDropdown.GetIndex()]
+end
+
+-- Функция создания/обновления ESP
+local function updateAllESP()
+    for _, data in pairs(espObjects) do
+        if data.highlight then
+            local show = states.esp and ((data.isPlayer and states.players) or (not data.isPlayer and states.npcs))
+            data.highlight.Enabled = show
+            
+            -- Обновляем цвета
+            data.highlight.OutlineColor = espColorPicker.GetColor()
+            data.highlight.FillColor = fillColorPicker.GetColor()
+            
+            -- Обновляем материал
+            local material = materialDropdown.GetValue()
+            if material == "Neon" then
+                data.highlight.FillTransparency = 0.7
+                data.highlight.OutlineTransparency = 0
+            elseif material == "Glass" then
+                data.highlight.FillTransparency = 0.5
+                data.highlight.OutlineTransparency = 0.3
+            elseif material == "ForceField" then
+                data.highlight.FillTransparency = 0.9
+                data.highlight.OutlineTransparency = 0
+            else -- Default
+                data.highlight.FillTransparency = 0.8
+                data.highlight.OutlineTransparency = 0
+            end
+        end
+        
+        if data.billboard then
+            local show = states.esp and ((data.isPlayer and states.players) or (not data.isPlayer and states.npcs))
+            data.billboard.Enabled = show
+        end
+        
+        if data.nameLabel then
+            data.nameLabel.Visible = states.names
+        end
+        
+        if data.hpLabel then
+            data.hpLabel.Visible = states.health
+        end
+    end
+end
+
+-- Создание ESP для персонажа
 local function addESP(character, isPlayer, name)
     local head = character:FindFirstChild("Head")
     if not head then return end
     
-    -- Проверка на уже существующий ESP
     if head:FindFirstChild("ESPBillboard") then return end
     
     -- Табличка
@@ -155,6 +540,7 @@ local function addESP(character, isPlayer, name)
     bill.Size = UDim2.new(0, 150, 0, 40)
     bill.StudsOffset = Vector3.new(0, 2.5, 0)
     bill.AlwaysOnTop = true
+    bill.Enabled = states.esp
     bill.Parent = head
     
     local bg = Instance.new("Frame")
@@ -162,7 +548,6 @@ local function addESP(character, isPlayer, name)
     bg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     bg.BackgroundTransparency = 0.5
     bg.Parent = bill
-    
     Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 4)
     
     local nameLabel = Instance.new("TextLabel")
@@ -172,6 +557,7 @@ local function addESP(character, isPlayer, name)
     nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     nameLabel.Font = Enum.Font.SourceSansBold
     nameLabel.TextSize = 12
+    nameLabel.Visible = states.names
     nameLabel.Parent = bg
     
     local hpLabel = Instance.new("TextLabel")
@@ -182,15 +568,17 @@ local function addESP(character, isPlayer, name)
     hpLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
     hpLabel.Font = Enum.Font.SourceSans
     hpLabel.TextSize = 11
+    hpLabel.Visible = states.health
     hpLabel.Parent = bg
     
     -- Подсветка
     local hl = Instance.new("Highlight")
     hl.Name = "ESPHighlight"
-    hl.FillColor = Color3.fromRGB(255, 255, 255)
+    hl.FillColor = fillColorPicker.GetColor()
     hl.FillTransparency = 0.8
-    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+    hl.OutlineColor = espColorPicker.GetColor()
     hl.OutlineTransparency = 0
+    hl.Enabled = states.esp
     hl.Parent = character
     
     local data = {
@@ -204,163 +592,3 @@ local function addESP(character, isPlayer, name)
     }
     
     espObjects[name] = data
-    
-    -- Обновление здоровья
-    local humanoid = character:FindFirstChild("Humanoid")
-    if humanoid then
-        humanoid.HealthChanged:Connect(function(hp)
-            hpLabel.Text = "HP: " .. math.floor(hp)
-            if hp > 75 then
-                hpLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
-            elseif hp > 40 then
-                hpLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
-            else
-                hpLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-            end
-        end)
-        
-        humanoid.Died:Connect(function()
-            bill:Destroy()
-            hl:Destroy()
-            espObjects[name] = nil
-        end)
-    end
-    
-    character.AncestryChanged:Connect(function(_, parent)
-        if not parent then
-            bill:Destroy()
-            hl:Destroy()
-            espObjects[name] = nil
-        end
-    end)
-end
-
--- Обновление видимости
-local function updateVisibility()
-    for _, data in pairs(espObjects) do
-        local show = states.esp and ((data.isPlayer and states.players) or (not data.isPlayer and states.npcs))
-        data.billboard.Enabled = show
-        data.highlight.Enabled = show
-        data.nameLabel.Visible = states.names
-        data.hpLabel.Visible = states.health
-    end
-end
-
--- Подключаем обновление видимости к кнопкам
-for _, btn in ipairs({espBtn, playerBtn, npcBtn, nameBtn, healthBtn}) do
-    btn.MouseButton1Click:Connect(updateVisibility)
-end
-
--- Обработка игроков
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= localPlayer and player.Character then
-        addESP(player.Character, true, player.Name)
-    end
-end
-
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function(char)
-        wait(0.5)
-        addESP(char, true, player.Name)
-    end)
-end)
-
--- Поиск NPC
-local function scanNPCs()
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") then
-            if not Players:GetPlayerFromCharacter(obj) then
-                local n = obj.Name
-                if obj.Humanoid.DisplayName ~= "" then n = obj.Humanoid.DisplayName end
-                addESP(obj, false, n)
-            end
-        end
-    end
-end
-
-scanNPCs()
-
--- Повторное сканирование
-spawn(function()
-    while wait(3) do
-        scanNPCs()
-    end
-end)
-
--- Прицел
-local crossGui
-local function toggleCrosshair()
-    if states.crosshair then
-        if crossGui then crossGui:Destroy() end
-        crossGui = Instance.new("ScreenGui", localPlayer.PlayerGui)
-        
-        -- Вертикальная линия
-        local v = Instance.new("Frame", crossGui)
-        v.Size = UDim2.new(0, 2, 0, 20)
-        v.Position = UDim2.new(0.5, -1, 0.5, -10)
-        v.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        v.BorderSizePixel = 0
-        
-        -- Горизонтальная линия
-        local h = Instance.new("Frame", crossGui)
-        h.Size = UDim2.new(0, 20, 0, 2)
-        h.Position = UDim2.new(0.5, -10, 0.5, -1)
-        h.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        h.BorderSizePixel = 0
-        
-        -- Точка
-        local d = Instance.new("Frame", crossGui)
-        d.Size = UDim2.new(0, 4, 0, 4)
-        d.Position = UDim2.new(0.5, -2, 0.5, -2)
-        d.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        d.BorderSizePixel = 0
-        Instance.new("UICorner", d).CornerRadius = UDim.new(0, 2)
-    else
-        if crossGui then
-            crossGui:Destroy()
-            crossGui = nil
-        end
-    end
-end
-
-crossBtn.MouseButton1Click:Connect(toggleCrosshair)
-
--- Aim Bot
-RunService.RenderStepped:Connect(function()
-    if not states.aim then return end
-    
-    local mouse = UserInputService:GetMouseLocation()
-    local closest = nil
-    local minDist = 200 -- Радиус в пикселях
-    
-    for _, data in pairs(espObjects) do
-        local char = data.character
-        if char and char.Parent then
-            local humanoid = char:FindFirstChild("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                -- Проверяем фильтры
-                if (data.isPlayer and not states.players) or (not data.isPlayer and not states.npcs) then
-                    continue
-                end
-                
-                local part = char:FindFirstChild(states.aimPart)
-                if part then
-                    local pos, onScreen = camera:WorldToViewportPoint(part.Position)
-                    if onScreen then
-                        local dist = (Vector2.new(pos.X, pos.Y) - mouse).Magnitude
-                        if dist < minDist then
-                            minDist = dist
-                            closest = part
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    if closest then
-        camera.CFrame = camera.CFrame:Lerp(CFrame.new(camera.CFrame.Position, closest.Position), 0.2)
-    end
-end)
-
-print("Скрипт полностью загружен!")
